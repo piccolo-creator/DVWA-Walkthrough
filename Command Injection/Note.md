@@ -1,89 +1,71 @@
 # Cybersecurity Lab Documentation: DVWA Command Injection
 
 ## Executive Summary
-This document provides a comprehensive walk-through and technical analysis of the **Command Injection vulnerability** modules within the **Damn Vulnerable Web Application (DVWA)** environment. The primary objective of this lab was to safely exploit input processing flaws in a web application interface to run unauthorized Operating System (OS) terminal commands on the hosting server back-end.
+This document provides a comprehensive walk-through and technical analysis of the Command Injection vulnerability modules within the Damn Vulnerable Web Application (DVWA) environment. The purpose of this lab was to safely exploit a flawed web interface to run unauthorized Operating System (OS) commands on a local hosting server.
 
 ---
 
-## 🛠️ Lab Environment Setup
-The exercises were conducted inside a **Kali Linux Virtual Machine** configured on an isolated internal network host segment. 
+##  Lab Environment Setup
+The exercises were performed inside a Kali Linux Virtual Machine hosted on an isolated host network interface.
 
-As captured in the primary terminal environment screen (**Screenshot 1**), the core web services were deployed directly from the root terminal path:
-* **DVWA Web Service Deployment:** Successfully initiated using the local automation script command: `# dvwa-start`.
-* **Network Target Mapping:** The web platform was served dynamically over the system loopback adapter path at **`http://127.0.0.1:42001`**.
+As captured in **Screenshot 1** (Terminal), the target web services were launched directly from the root terminal:
+* **DVWA Web Service:** Started via the local pre-built installer utility (`dvwa-start`).
+* **Local Web URL:** Service provisioned dynamically on the local loopback interface at http://127.0.0.1:42001.
 
-<img width="1913" height="738" alt="pen test 00" src="https://github.com/user-attachments/assets/eedbfd21-c72b-4f08-b417-c10b7be47d7e" />
+<img width="1913" height="738" alt="pen test 00" src="https://github.com/user-attachments/assets/5620edf2-200f-43b1-94f9-066af53bb4cd" />
 
 
 ---
 
-## 🛑 Security Level 1: Low Security
+##  Security Level 1: Low Security
 
 ### 1. Source Code Analysis
-According to the raw source code panel captured in **Screenshot 2**, the web application architecture accepts parameters directly from the client form structure without running any filtering or verification logic on the incoming data string:
-
-```php
-if( isset( $_POST[ 'Submit' ] ) ) {
-    // Get input
-    $target = $_REQUEST[ 'ip' ];
-
-    // Determine OS and execute the ping command.
-    if( stristr( php_uname( 's' ), 'Windows NT' ) ) {
-        $cmd = shell_exec( 'ping ' . $target );
-    }
-    else {
-        $cmd = shell_exec( 'ping -c 4 ' . $target );
-    }
-}
-```
+According to the raw source code captured in the pop-up window of **Screenshot 2** (Low Level), the application reads raw input straight from the user form without validating its content.
 
 ### 2. Exploitation Vector
-Because the application passes the `\(target` variable straight to a system command shell without cleaning out special characters, the server terminal environment can be hijacked using standard command breaks.  * **Testing Payload utilized:** `127.0.0.1 ; whoami` * **The Semicolon Break Feature:** The Linux shell treats the semicolon (`;`) as an explicit command delimiter line. It processes the initial `ping` directive, stops, and immediately triggers the secondary standalone `whoami` command right after it.  ### 3. Verification & Lab Results As verified in the main browser output window of **Screenshot 2**, the web server successfully executes the command injection payload. The system bypasses the web app interface controls entirely and displays the back-end web user identity account name **`dvwa`** printed explicitly onto the webpage interface.  *(Place `screenshot_2_low.png` here)*  ---  ## ⚠️ Security Level 2: Medium Security  ### 1. Source Code Analysis As displayed in the code review interface of **Screenshot 3**, the system developer attempted to lock down the command execution flaw by building a basic string substitution array (a character blacklist):  \%\%MAGIT_PARSER_PROTECT\%\%```php // Set blacklist $substitutions = array(     '&&' => '',     ';'  => '', );  // Remove any of the characters in the array (blacklist). $target = str_replace( array_keys( $substitutions ), $substitutions, $target ); \%\%MAGIT_PARSER_PROTECT\%\%```  If the program runs into a semicolon (`;`) or a double-ampersand (`&&`), it wipes the characters away completely and changes them to an empty string format (`''`).  ### 2. Exploitation Vector (The Long Dash Loophole) The central flaw in this defense configuration is the strategic reliance on a limited character blacklist. The developer only accounted for two specific command breaks, forgetting other valid shell terminal characters.  To break this filter layer, the vertical **pipe (`\vert{}`) symbol** was used. In Linux architectures, a pipe takes the output string generated from the left command and streams it straight as input into the right command.  * **Testing Payload utilized:** `10.0.2.15 \vert{} whoami`  ### 3. Verification & Lab Results Because the pipe symbol character is not listed in the developer's `\)substitutions` array logic, the sanitization filter treats it as regular string input and ignores it completely. 
+Because there is zero input sanitization or filtering logic, any standard shell metacharacter can be passed straight to the execution string.
+* **The Input Payload:** `127.0.0.1 ; whoami`
+* **The Semicolon Mechanism:** The operating system shell reads the semicolon (`;`) as a command separator. It stops processing the ping utility and immediately launches a secondary standalone thread.
 
-As validated on the main page view of **Screenshot 3**, the web application engine accepts the payload, forwards it directly to the system background shell, and outputs the user profile tag **`dvwa`** to the screen again.
+### 3. Verification & Results
+After sending the payload, the web server processes the instruction and prints out the system username `dvwa` directly beneath the automated ping traffic logs.
 
-*(Place `screenshot_3_medium.png` here)*
+<img width="1920" height="979" alt="pen test 1" src="https://github.com/user-attachments/assets/6040e0f6-a3a4-4b2c-bbd4-734678258f40" />
+
 
 ---
 
-## 🔒 Security Level 3: High Security
+##  Security Level 2: Medium Security
 
 ### 1. Source Code Analysis
-As documented in the code view window of **Screenshot 4**, the developer expanded the blacklist parameters significantly to target a much larger array of control characters, including pipes, ampersands, variables, and bracket structures:
+As shown in **Screenshot 3** (Medium Code), the developer implemented a basic defense policy to filter out the commands utilized in the Low-level module. They introduced an input pattern matching array (a blacklist filter) that strips out `&&` and `;`.
 
-```php
-// Set blacklist
-$substitutions = array(
-    '||' => '',
-    '&'  => '',
-    ';'  => '',
-    '| ' => '', // <-- Human Syntax Error
-    '-'  => '',
-    '$'  => '',
-    '('  => '',
-    ')'  => '',
-    '`'  => '',
-    '||' => '',
-);
-```
+<img width="1920" height="995" alt="pen test 2" src="https://github.com/user-attachments/assets/ad730999-89de-410d-842d-6c356d434eb7" />
 
-### 2. Exploitation Vector (The Space Elimination Trick)
-The high security layer fails due to a micro syntax error hidden within the substitution array rule: `'| ' => ''`. The developer accidentally left a trailing empty space next to the pipe character string indicator. 
 
-This means the application is strictly searching for a pipe symbol *immediately followed by a space*. If an entry does not contain that space, it will slip through the filter completely untouched.
+### 2. Exploitation Vector (The Long Dash Loophole)
+The core failure of this defense is relying on a restricted blacklist pattern. The developer blocked two specific tokens but entirely omitted other valid shell operators.
 
-* **Testing Payload utilized:** `10.0.2.15|whoami`
+To bypass this filter, the vertical **pipe (`|`) character** (often called the "long dash") was utilized. In Linux terminals, a pipe forces the machine to route the output data of the first task into the entry point of the next command.
+* **The Input Payload:** `10.0.2.15 | whoami`
 
-### 3. Verification & Lab Results
-By squeezing the payload completely together and **removing the space** surrounding the character, the target string bypasses the filter match rules. The pipe command breaks out of the context loop, runs the payload, and displays the **`dvwa`** username target on the display sheet, as confirmed in **Screenshot 4**.
+### 3. Verification & Results
+Because the pipe symbol is missing from the developer’s `$substitutions` array list, the filter treats the character as completely safe text and ignores it.
 
-*(Place `screenshot_4_high.png` here)*
+As confirmed in the main web layout of **Screenshot 4** (Medium Result), the web execution engine skips past the defense wall, fires the secondary command, and prints out the core username `dvwa` inside the browser view once again.
+
+<img width="1920" height="979" alt="pen test 3" src="https://github.com/user-attachments/assets/89907932-360f-4aa5-a4a9-641141e15a54" />
+
 
 ---
 
-## 🛡️ Secure Defensive Remediation: The Impossible Level
-To fully secure a application environment against Command Injection risks, developers must abandon the use of weak signature-based blacklists entirely. 
+##  Post-Exploit Conceptual Assessment: High & Impossible
 
-### The White-Listing Solution
-On the **Impossible** level, input text validation must be rigidly enforced. The application must break down user entries into individual octets and verify that the input corresponds *solely* to a valid, clean numeric IPv4 template layout structure (`A.B.C.D`). If any invalid alphabetic characters, semicolons, or pipe symbols are detected during validation, the thread is dropped instantly before the variable ever makes contact with a system shell execution process.
+### 1. High Security Level Analysis
+While not detailed directly in the local source pop-ups, the walkthrough configurations establish that the developer attempts to patch the medium loophole by adding the pipe (`|`) to the blacklist. However, a human syntax error was coded (`'| ' => ''`), meaning it only removes a pipe if a space follows it. Squeezing the payload into `10.0.2.15|whoami` completely outsmarts this condition.
 
+<img width="1920" height="1000" alt="pen test 4" src="https://github.com/user-attachments/assets/790e8d11-be4f-4e54-8ad1-1ff99b50be13" />
+
+
+### 2. The Impossible Remediation Policy
+To eliminate this risk entirely, the application must shift completely from a weak character blacklist to strict token type validation. The application should check every incoming piece of text against an internal rule pattern that ensures the input contains only numeric integers and periods mapped to a legal IPv4 context (`A.B.C.D`). If non-numeric characters (such as `;`, `|`, or alphabet letters) are present, execution is instantly blocked before it ever touches the server's command-line interface.
