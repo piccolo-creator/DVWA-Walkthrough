@@ -69,3 +69,6 @@ While not detailed directly in the local source pop-ups, the walkthrough configu
 
 ### 2. The Impossible Remediation Policy
 To eliminate this risk entirely, the application must shift completely from a weak character blacklist to strict token type validation. The application should check every incoming piece of text against an internal rule pattern that ensures the input contains only numeric integers and periods mapped to a legal IPv4 context (`A.B.C.D`). If non-numeric characters (such as `;`, `|`, or alphabet letters) are present, execution is instantly blocked before it ever touches the server's command-line interface.
+
+<img width="1920" height="995" alt="DVWA CI 05" src="https://github.com/user-attachments/assets/9447165e-10f2-440a-9a78-905a450c6e65" />
+
